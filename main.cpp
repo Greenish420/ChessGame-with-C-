@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <cctype>
+#include "raylib.h"
+
 
 using namespace std;
 
@@ -173,17 +175,64 @@ int* cordsToIndex(string cords){
     return outPut;
 }
 
+
+
+void drawPieces(int SQ){
+    for(int i= 0; i<8; i++){
+        for(int j = 0; j <8; j++){
+            Color color = (((i + j) % 2) == 0) ?  BLACK :  WHITE;
+            DrawRectangle(j*SQ, i*SQ, SQ, SQ, color);
+        }
+    }
+}
+
 int main()
 {
+
     int Board[8][8];
+    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",Board); 
 
-    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", Board);
+    InitWindow(1024, 1024, "Chess");
 
-    printBoard(Board);      
-    
-    movePiece(Board,cordsToIndex("d1"),cordsToIndex("e7"));
+    Texture2D BoardTexture  = LoadTexture("Resources/Board.png");
+    Texture2D Pieces[2][7];
+    for(int i = 0; i<2; i++){
 
-    printBoard(Board);
+        for(int j = 1; j<7; j++){
+            string path = ("Resources/Pieces/" + to_string(i) + "/" + to_string(j) + ".png");
+            Pieces[i][j] = LoadTexture(path.c_str());
+        }
+        
+    }
+    SetTargetFPS(60);
+
+    while(!WindowShouldClose()){
+
+        BeginDrawing();
+        ClearBackground(BEIGE);
+
+        DrawTextureEx(BoardTexture, {0,0}, 0, 4.0f, WHITE);
+        for(int i = 0; i<8; i++){
+            for(int j = 0; j<8; j++){
+
+                if(Board[i][j] == None)
+                    continue;
+
+
+                if((Board[i][j] & ColorMask) == 8){
+                    DrawTextureEx(Pieces[(White/8)-1][(Board[i][j] & TypeMask)],{j * 128, i * 128},0,4.0f,WHITE);
+                }
+                else{
+                    DrawTextureEx(Pieces[(Black/8)-1][(Board[i][j] & TypeMask)],{j * 128, i * 128},0,4.0f,WHITE);
+                }
+            }
+        }
+        EndDrawing();
+
+    }
+
+    UnloadTexture(BoardTexture);
+    CloseWindow();
     
     return 0;
 }
