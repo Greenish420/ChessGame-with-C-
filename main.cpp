@@ -3,7 +3,6 @@
 #include <cctype>
 #include "raylib.h"
 
-
 using namespace std;
 
 enum Piece
@@ -23,7 +22,25 @@ enum Piece
     ColorMask = 24
 };
 
+enum moveType
+{
+    MoveNormal = 0,
+    MoveCastling,
+    MoveEnPassant,
+    MovePromotion
+};
 
+struct Move
+{
+    int from[2];
+    int to[2];
+    
+    int piece; 
+
+    int whatsOnDest;
+
+    moveType moveType = MoveNormal;
+};
 
 int charToCode(char c)
 {
@@ -127,16 +144,18 @@ void stringToBoard(string layout, int Board[8][8])
 
 void printBoard(int Board[8][8])
 {
-    cout << "[" << endl << "   ";
-    
-    for (int i = 0; i<8; i++){
+    cout << "[" << endl
+         << "   ";
+
+    for (int i = 0; i < 8; i++)
+    {
         cout << (char)('a' + i) << ", ";
     }
     cout << endl;
-    
+
     for (int i = 0; i < 8; i++)
     {
-        cout << 8 - i <<", ";
+        cout << 8 - i << ", ";
         for (int j = 0; j < 8; j++)
         {
             cout << (((Board[i][j] & White) == 8) ? (char)toupper(codeToChar(Board[i][j])) : codeToChar(Board[i][j])) << ", ";
@@ -148,129 +167,229 @@ void printBoard(int Board[8][8])
 
 void movePiece(int Board[8][8], int from[2], int to[2])
 {
-    Board[to[0]][to[1]] =  Board[from[0]][from[1]];
+    Board[to[0]][to[1]] = Board[from[0]][from[1]];
 
     Board[from[0]][from[1]] = None;
-
 }
 
+int *cordsToIndex(string cords)
+{
 
-int* cordsToIndex(string cords){
-
-    if(cords.size() >  2 || cords.size() < 2)
+    if (cords.size() > 2 || cords.size() < 2)
         return NULL;
 
     int i = (int)(tolower(cords[0]) - 'a');
     int j = (int)(8 - ((int)cords[1] - '0'));
 
-    if(!(i >= 0 && i <=7 && j >= 0 && j <= 7)){
+    if (!(i >= 0 && i <= 7 && j >= 0 && j <= 7))
+    {
         cout << "(cordsToIndex) Out of Range";
         return NULL;
     }
 
-    int* outPut = new int[2];
+    int *outPut = new int[2];
     outPut[0] = j;
     outPut[1] = i;
 
     return outPut;
 }
 
-
-
-void drawPieces(int SQ){
-    for(int i= 0; i<8; i++){
-        for(int j = 0; j <8; j++){
-            Color color = (((i + j) % 2) == 0) ?  BLACK :  WHITE;
-            DrawRectangle(j*SQ, i*SQ, SQ, SQ, color);
+void drawPieces(int SQ)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            Color color = (((i + j) % 2) == 0) ? BLACK : WHITE;
+            DrawRectangle(j * SQ, i * SQ, SQ, SQ, color);
         }
     }
 }
 
-void handleMoving(int Board[8][8],bool& isHolding,int& whatsBeingHeld){
+bool validateMove(Move move,int Board[8][8]){
 
-   
-    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+    int rowDiff = move.to[0] - move.from[0];
+    int colDiff = move.to[1] - move.from[1];
+    bool isRock = (((rowDiff) == 0) || ((colDiff) == 0));
+    bool isBishop = (abs(rowDiff) == abs(colDiff));
 
-            int x = GetMouseX()/128;
-            int y = GetMouseY()/128; 
+    if(((rowDiff) == 0) && ((colDiff) == 0))    
+        return false;
 
-            if(!isHolding){
-                if(Board[y][x] != None){
-                    isHolding = true;
-                    whatsBeingHeld = Board[y][x];
-                    Board[y][x] = None;
-                }
+    if((move.whatsOnDest & ColorMask) == (move.piece & ColorMask))
+        return false;
+
+    switch ((move.piece & TypeMask))
+    {
+        case Rook:
+            if (isRock){
+                return true;
             }
             else{
+                return false;
+            }
+        
+        case Bishop:
+            if (isBishop){
+                return true;
+            }
+            else{
+                return false;
+            }
+        case Queen:
+            if (isRock || isBishop){
+                return true;
+            }
+            else 
+                return false;
+            
 
-                Board[y][x] = whatsBeingHeld;
+        case King:
+            if(abs(rowDiff) <= 1 && abs(colDiff) <= 1)
+                return true;
+            else 
+                return false;
+        
+        case Knight:
+            
+            if((abs(rowDiff) == 1 && abs(colDiff) == 2) || (abs(rowDiff) == 2 && abs(colDiff) == 1))
+                return true;
+            else 
+                return false;
+            
+
+
+
+        default:
+            return false;
+    }
+}
+
+void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2],Move& move)
+{
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    {
+        
+        int x = GetMouseX() / 128;
+        int y = GetMouseY() / 128;
+
+        if(x > 7 || x < 0 || y > 7 || y < 0)
+            return;
+
+        if (!isHolding)
+        {
+          
+            if (Board[y][x] != None)
+            {
+                
+                from[0] = y;
+                from[1] = x;
+                isHolding = true;
+                whatsBeingHeld = Board[y][x];
+                Board[y][x] = None;
+            }
+        }
+        else
+        {
+            
+            to[0] = y;
+            to[1] = x;
+
+            move.from[0] = from[0];
+            move.from[1] = from[1];
+
+            move.to[0] = to[0];
+            move.to[1] = to[1];
+
+            move.piece = whatsBeingHeld;
+            move.whatsOnDest = Board[y][x];
+
+            if(validateMove(move,Board)){
+                Board[to[0]][to[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
             }
-               
+            else{
+                Board[from[0]][from[1]] = whatsBeingHeld;
+                whatsBeingHeld = None;
+                isHolding = false;
+            }
+
         }
+    }
+}
+
+void handlePieceFollow(int whatsBeingHeld, Texture2D Pieces[2][7])
+{
+    DrawTextureEx(Pieces[((whatsBeingHeld & ColorMask) / 8) - 1][(whatsBeingHeld & TypeMask)], {GetMouseX() - 64, GetMouseY() - 64}, 0, 4.0f, WHITE);
 }
 
 
-void handlePieceFollow(int whatsBeingHeld,Texture2D Pieces[2][7]){
-    DrawTextureEx(Pieces[((whatsBeingHeld&ColorMask)/8)-1][(whatsBeingHeld & TypeMask)],{GetMouseX() -64, GetMouseY() - 64},0,4.0f,WHITE);
-}
+
 
 int main()
 {
 
     int Board[8][8];
-    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",Board); 
+    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", Board);
 
     InitWindow(1024, 1024, "Chess");
 
-    Texture2D BoardTexture  = LoadTexture("Resources/Board.png");
+    Texture2D BoardTexture = LoadTexture("Resources/Board.png");
     Texture2D Pieces[2][7];
-    for(int i = 0; i<2; i++){
+    for (int i = 0; i < 2; i++)
+    {
 
-        for(int j = 1; j<7; j++){
+        for (int j = 1; j < 7; j++)
+        {
             string path = ("Resources/Pieces/" + to_string(i) + "/" + to_string(j) + ".png");
             Pieces[i][j] = LoadTexture(path.c_str());
         }
-        
     }
     SetTargetFPS(60);
 
     bool isHolding = false;
     int whatsBeingHeld = None;
-
-    while(!WindowShouldClose()){
+    int from[2];
+    int to[2];
+    Move move;
+    
+    while (!WindowShouldClose())
+    {
 
         BeginDrawing();
-        
-        handleMoving(Board,isHolding,whatsBeingHeld);
-        
+
+        handleMoving(Board, isHolding, whatsBeingHeld,from,to,move);
+
         ClearBackground(BEIGE);
-        
-        DrawTextureEx(BoardTexture, {0,0}, 0, 4.0f, WHITE);
-        for(int i = 0; i<8; i++){
-            for(int j = 0; j<8; j++){
-                
-                if(Board[i][j] == None)
-                continue;
-                
-                
-                if((Board[i][j] & ColorMask) == 8){
-                    DrawTextureEx(Pieces[(White/8)-1][(Board[i][j] & TypeMask)],{j * 128, i * 128},0,4.0f,WHITE);
+
+        DrawTextureEx(BoardTexture, {0, 0}, 0, 4.0f, WHITE);
+        for (int i = 0; i < 8; i++)
+        {
+            for (int j = 0; j < 8; j++)
+            {
+
+                if (Board[i][j] == None)
+                    continue;
+
+                if ((Board[i][j] & ColorMask) == 8)
+                {
+                    DrawTextureEx(Pieces[(White / 8) - 1][(Board[i][j] & TypeMask)], {j * 128, i * 128}, 0, 4.0f, WHITE);
                 }
-                else{
-                    DrawTextureEx(Pieces[(Black/8)-1][(Board[i][j] & TypeMask)],{j * 128, i * 128},0,4.0f,WHITE);
+                else
+                {
+                    DrawTextureEx(Pieces[(Black / 8) - 1][(Board[i][j] & TypeMask)], {j * 128, i * 128}, 0, 4.0f, WHITE);
                 }
             }
         }
-        
-        handlePieceFollow(whatsBeingHeld,Pieces);
+        if (isHolding)
+            handlePieceFollow(whatsBeingHeld, Pieces);
         EndDrawing();
-
     }
 
     UnloadTexture(BoardTexture);
     CloseWindow();
-    
+
     return 0;
 }
