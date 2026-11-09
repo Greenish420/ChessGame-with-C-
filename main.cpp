@@ -34,8 +34,8 @@ struct Move
 {
     int from[2];
     int to[2];
-    
-    int piece; 
+
+    int piece;
 
     int whatsOnDest;
 
@@ -206,83 +206,160 @@ void drawPieces(int SQ)
     }
 }
 
-bool validateMove(Move move,int Board[8][8]){
+bool checkInBetween(int Board[8][8], int destenation[2], int origin[2])
+{
+    int xStep;
+    if ((destenation[0] - origin[0]) > 0)
+        xStep = 1;
+    else if ((destenation[0] - origin[0]) < 0)
+        xStep = -1;
+    else
+        xStep = 0;
+
+    int yStep;
+
+    if ((destenation[1] - origin[1]) > 0)
+        yStep = 1;
+    else if ((destenation[1] - origin[1]) < 0)
+        yStep = -1;
+    else
+        yStep = 0;
+
+    int x = origin[0], y = origin[1];
+
+    while (x != destenation[0] || y != destenation[1])
+    {
+
+        x += xStep;
+        y += yStep;
+
+        if (Board[x][y] != None && (x != destenation[0] || y != destenation[1]))
+            return false;
+    }
+
+    return true;
+}
+
+bool validateMove(Move move, int Board[8][8])
+{
 
     int rowDiff = move.to[0] - move.from[0];
     int colDiff = move.to[1] - move.from[1];
     bool isRock = (((rowDiff) == 0) || ((colDiff) == 0));
     bool isBishop = (abs(rowDiff) == abs(colDiff));
 
-    if(((rowDiff) == 0) && ((colDiff) == 0))    
+    if (((rowDiff) == 0) && ((colDiff) == 0))
         return false;
 
-    if((move.whatsOnDest & ColorMask) == (move.piece & ColorMask))
+    if ((move.whatsOnDest & ColorMask) == (move.piece & ColorMask))
         return false;
 
     switch ((move.piece & TypeMask))
     {
-        case Rook:
-            if (isRock){
-                return true;
-            }
-            else{
-                return false;
-            }
-        
-        case Bishop:
-            if (isBishop){
-                return true;
-            }
-            else{
-                return false;
-            }
-        case Queen:
-            if (isRock || isBishop){
-                return true;
-            }
-            else 
-                return false;
-            
-
-        case King:
-            if(abs(rowDiff) <= 1 && abs(colDiff) <= 1)
-                return true;
-            else 
-                return false;
-        
-        case Knight:
-            
-            if((abs(rowDiff) == 1 && abs(colDiff) == 2) || (abs(rowDiff) == 2 && abs(colDiff) == 1))
-                return true;
-            else 
-                return false;
-            
-
-
-
-        default:
+    case Rook:
+        if (isRock && checkInBetween(Board, move.to, move.from))
+        {
+            return true;
+        }
+        else
+        {
             return false;
+        }
+
+    case Bishop:
+        if (isBishop && checkInBetween(Board, move.to, move.from))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    case Queen:
+        if ((isRock || isBishop) && checkInBetween(Board, move.to, move.from))
+        {
+            return true;
+        }
+        else
+            return false;
+
+    case King:
+        if (abs(rowDiff) <= 1 && abs(colDiff) <= 1)
+            return true;
+        else
+            return false;
+
+    case Knight:
+
+        if ((abs(rowDiff) == 1 && abs(colDiff) == 2) || (abs(rowDiff) == 2 && abs(colDiff) == 1))
+            return true;
+        else
+            return false;
+
+    case Pawn:
+    {
+        bool isWhite = ((move.piece & ColorMask) == 8);
+        int dir = 0;
+        if (isWhite)
+            dir = -1;
+        else
+            dir = 1;
+
+        bool isStartingRow = (isWhite && move.from[0] == 6) || (!isWhite && move.from[0] == 1);
+
+        if (move.to[1] == move.from[1] && move.to[0] == move.from[0] + dir)
+        {
+            if (Board[move.to[0]][move.to[1]] == None)
+            {
+                return true;
+            }
+        }
+
+        else if (move.to[1] == move.from[1] && move.to[0] == move.from[0] + (2 * dir))
+        {
+            if (isStartingRow &&
+                Board[move.from[0] + dir][move.from[1]] == None && // Check square in between
+                Board[move.to[0]][move.to[1]] == None)
+            { // Check destination square
+                return true;
+            }
+        }
+
+        else if (abs(move.to[1] - move.from[1]) == 1 && move.to[0] == move.from[0] + dir)
+        {
+            if (Board[move.to[0]][move.to[1]] != None)
+            {
+                return true;
+            }
+        }
+
+           
+        return  false;
+    }
+
+    default:
+        return false;
     }
 }
 
-void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2],Move& move)
+void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move)
 {
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
-        
+
         int x = GetMouseX() / 128;
         int y = GetMouseY() / 128;
 
-        if(x > 7 || x < 0 || y > 7 || y < 0)
+        if (x > 7 || x < 0 || y > 7 || y < 0)
             return;
 
         if (!isHolding)
         {
-          
+
             if (Board[y][x] != None)
             {
-                
+
                 from[0] = y;
                 from[1] = x;
                 isHolding = true;
@@ -292,7 +369,7 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
         }
         else
         {
-            
+
             to[0] = y;
             to[1] = x;
 
@@ -305,17 +382,18 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
             move.piece = whatsBeingHeld;
             move.whatsOnDest = Board[y][x];
 
-            if(validateMove(move,Board)){
+            if (validateMove(move, Board))
+            {
                 Board[to[0]][to[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
             }
-            else{
+            else
+            {
                 Board[from[0]][from[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
             }
-
         }
     }
 }
@@ -324,9 +402,6 @@ void handlePieceFollow(int whatsBeingHeld, Texture2D Pieces[2][7])
 {
     DrawTextureEx(Pieces[((whatsBeingHeld & ColorMask) / 8) - 1][(whatsBeingHeld & TypeMask)], {GetMouseX() - 64, GetMouseY() - 64}, 0, 4.0f, WHITE);
 }
-
-
-
 
 int main()
 {
@@ -354,13 +429,13 @@ int main()
     int from[2];
     int to[2];
     Move move;
-    
+
     while (!WindowShouldClose())
     {
 
         BeginDrawing();
 
-        handleMoving(Board, isHolding, whatsBeingHeld,from,to,move);
+        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move);
 
         ClearBackground(BEIGE);
 
