@@ -186,6 +186,36 @@ void drawPieces(int SQ){
     }
 }
 
+void handleMoving(int Board[8][8],bool& isHolding,int& whatsBeingHeld){
+
+   
+    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+
+            int x = GetMouseX()/128;
+            int y = GetMouseY()/128; 
+
+            if(!isHolding){
+                if(Board[y][x] != None){
+                    isHolding = true;
+                    whatsBeingHeld = Board[y][x];
+                    Board[y][x] = None;
+                }
+            }
+            else{
+
+                Board[y][x] = whatsBeingHeld;
+                whatsBeingHeld = None;
+                isHolding = false;
+            }
+               
+        }
+}
+
+
+void handlePieceFollow(int whatsBeingHeld,Texture2D Pieces[2][7]){
+    DrawTextureEx(Pieces[((whatsBeingHeld&ColorMask)/8)-1][(whatsBeingHeld & TypeMask)],{GetMouseX() -64, GetMouseY() - 64},0,4.0f,WHITE);
+}
+
 int main()
 {
 
@@ -206,19 +236,25 @@ int main()
     }
     SetTargetFPS(60);
 
+    bool isHolding = false;
+    int whatsBeingHeld = None;
+
     while(!WindowShouldClose()){
 
         BeginDrawing();
+        
+        handleMoving(Board,isHolding,whatsBeingHeld);
+        
         ClearBackground(BEIGE);
-
+        
         DrawTextureEx(BoardTexture, {0,0}, 0, 4.0f, WHITE);
         for(int i = 0; i<8; i++){
             for(int j = 0; j<8; j++){
-
+                
                 if(Board[i][j] == None)
-                    continue;
-
-
+                continue;
+                
+                
                 if((Board[i][j] & ColorMask) == 8){
                     DrawTextureEx(Pieces[(White/8)-1][(Board[i][j] & TypeMask)],{j * 128, i * 128},0,4.0f,WHITE);
                 }
@@ -227,6 +263,8 @@ int main()
                 }
             }
         }
+        
+        handlePieceFollow(whatsBeingHeld,Pieces);
         EndDrawing();
 
     }
