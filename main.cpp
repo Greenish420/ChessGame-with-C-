@@ -342,7 +342,7 @@ bool validateMove(Move move, int Board[8][8])
     }
 }
 
-void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move)
+void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move,Sound moveSFX,bool& whiteTurn)
 {
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -369,6 +369,8 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
         }
         else
         {
+            
+
 
             to[0] = y;
             to[1] = x;
@@ -382,11 +384,13 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
             move.piece = whatsBeingHeld;
             move.whatsOnDest = Board[y][x];
 
-            if (validateMove(move, Board))
+            if (validateMove(move, Board) && (((move.piece & ColorMask) == 8 && whiteTurn) || ((move.piece & ColorMask) == 16 && !whiteTurn)))
             {
+                whiteTurn = !whiteTurn;
                 Board[to[0]][to[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
+                PlaySound(moveSFX);
             }
             else
             {
@@ -410,6 +414,10 @@ int main()
     stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", Board);
 
     InitWindow(1024, 1024, "Chess");
+    InitAudioDevice();
+
+
+    Sound moveSFX = LoadSound("SFX/sound.wav");
 
     Texture2D BoardTexture = LoadTexture("Resources/Board.png");
     Texture2D Pieces[2][7];
@@ -429,13 +437,13 @@ int main()
     int from[2];
     int to[2];
     Move move;
-
+    bool whiteTurn = true;
     while (!WindowShouldClose())
     {
 
         BeginDrawing();
 
-        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move);
+        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX,whiteTurn);
 
         ClearBackground(BEIGE);
 
