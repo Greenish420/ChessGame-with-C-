@@ -21,55 +21,56 @@ enum Piece
     ColorMask = 24
 };
 
+
+
 int charToCode(char c)
 {
     switch (c)
     {
     case 'k':
         return King;
-       
+
     case 'q':
         return Queen;
-        
+
     case 'n':
         return Knight;
-        
+
     case 'b':
         return Bishop;
-        
+
     case 'p':
         return Pawn;
-       
+
     case 'r':
         return Rook;
-        
 
     default:
         return None;
     }
 }
 
-char codeToChar(int c){
-     switch (c & TypeMask)
+char codeToChar(int c)
+{
+    switch (c & TypeMask)
     {
     case King:
         return 'k';
-        
+
     case Queen:
         return 'q';
-       
+
     case Knight:
         return 'n';
-       
+
     case Bishop:
         return 'b';
-       
+
     case Pawn:
         return 'p';
-       
+
     case Rook:
         return 'r';
-       
 
     default:
         return '.';
@@ -123,29 +124,66 @@ void stringToBoard(string layout, int Board[8][8])
 }
 
 void printBoard(int Board[8][8])
-{   
-    cout << "[" << endl;
+{
+    cout << "[" << endl << "   ";
+    
+    for (int i = 0; i<8; i++){
+        cout << (char)('a' + i) << ", ";
+    }
+    cout << endl;
+    
     for (int i = 0; i < 8; i++)
     {
+        cout << 8 - i <<", ";
         for (int j = 0; j < 8; j++)
         {
-            cout << (((Board[i][j] & White) == 8) ? (char)toupper(codeToChar(Board[i][j])) : codeToChar(Board[i][j]))  << ", ";
+            cout << (((Board[i][j] & White) == 8) ? (char)toupper(codeToChar(Board[i][j])) : codeToChar(Board[i][j])) << ", ";
         }
         cout << endl;
     }
-    cout << "]";
+    cout << "]" << endl;
+}
+
+void movePiece(int Board[8][8], int from[2], int to[2])
+{
+    Board[to[0]][to[1]] =  Board[from[0]][from[1]];
+
+    Board[from[0]][from[1]] = None;
+
 }
 
 
+int* cordsToIndex(string cords){
+
+    if(cords.size() >  2 || cords.size() < 2)
+        return NULL;
+
+    int i = (int)(tolower(cords[0]) - 'a');
+    int j = (int)(8 - ((int)cords[1] - '0'));
+
+    if(!(i >= 0 && i <=7 && j >= 0 && j <= 7)){
+        cout << "(cordsToIndex) Out of Range";
+        return NULL;
+    }
+
+    int* outPut = new int[2];
+    outPut[0] = j;
+    outPut[1] = i;
+
+    return outPut;
+}
 
 int main()
 {
     int Board[8][8];
-   
-    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",Board);
+
+    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", Board);
+
+    printBoard(Board);      
+    
+    movePiece(Board,cordsToIndex("d1"),cordsToIndex("e7"));
 
     printBoard(Board);
     
-
     return 0;
 }
