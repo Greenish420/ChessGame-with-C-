@@ -191,43 +191,9 @@ Most bugs along the way came from a few recurring causes: operator precedence in
 
 ---
 
-## Known Limitations
-
-- **Draws:** no threefold repetition, fifty-move rule, or insufficient-material detection. Only stalemate ends the game as a draw.
-- **No undo, move history, or notation.**
-- **No resign or draw offers.**
-- **Two players on one machine only.** There is no AI opponent or networking.
-- **The FEN loader reads only the piece placement.** The side to move, castling rights, and en passant fields are ignored, so custom positions always start with castling rights available and White to move.
-- **Fixed window size** (1024x1024), and a single sound effect for every kind of move.
-- **Single source file.** Everything lives in `main.cpp`.
-- **Perft tests have not been run** against the move generator. Correctness was checked with hand-made positions.
-
----
-
-## Roadmap
-
-- [ ] Separate sounds for capture, castle, check, promotion, and game over
-- [ ] Last-move highlight and check highlight
-- [ ] Right-click square marking and arrows
-- [ ] Move list and undo
-- [ ] Threefold repetition, fifty-move rule, insufficient material
-- [ ] Split the code into headers and source files (board, rules, GUI)
-- [ ] Perft test suite to verify the rules engine
-- [ ] A chess engine (minimax with alpha-beta pruning) for single-player mode, ideally with a UCI interface
-
----
-
 ## Credits
 
 - Built with [raylib](https://www.raylib.com/)
 - Pixel-art board and pieces: [Free Ultimate Pixel Art Chess Asset Pack](https://itch.io/t/7143117/free-ultimate-pixel-art-chess-asset-pack-100-piece-styles-100-chessboards) by [author name]. Please check the pack's license before redistributing the assets.
-- Sound effect: [source]
-
-## License
-
-[Choose a license, for example MIT, and add a LICENSE file.]
-The code is yours to license. The art and sound assets keep their own original licenses.
-
-## Author
 
 [Your name] — [link to your GitHub]
