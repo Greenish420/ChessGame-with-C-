@@ -346,6 +346,136 @@ bool validateMove(Move &move, int Board[8][8], int epNote[2])
     }
 }
 
+bool findKing(int Board[8][8], int color, int &row, int &col)
+{
+    for (int r = 0; r < 8; r++)
+    {
+        for (int c = 0; c < 8; c++)
+        {
+            if ((Board[r][c] & TypeMask) == King && (Board[r][c] & ColorMask) == color)
+            {
+                row = r;
+                col = c;
+                return true;
+            }
+        }
+    }
+    row = -1;
+    col = -1;
+    return false;
+}
+
+bool isThisSquareAttacked(int Board[8][8], bool attackerIsWhite, int TargetSquare[2], int epNote[2])
+{
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
+            int square = Board[row][col];
+            if ((square != None) && ((attackerIsWhite && ((square & ColorMask) == 8)) || (!attackerIsWhite && ((square & ColorMask) == 16))))
+            {
+                Move move;
+                move.from[0] = row;
+                move.from[1] = col;
+
+                move.to[0] = TargetSquare[0];
+                move.to[1] = TargetSquare[1];
+
+                move.piece = square;
+
+                move.whatsOnDest = Board[TargetSquare[0]][TargetSquare[1]];
+
+                move.moveType = MoveNormal;
+
+                if (validateMove(move, Board, epNote))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool leavesKingInCheck(int Board[8][8], Move move, bool moverIsWhite)
+{
+    int copy[8][8];
+    int kingRow = -1;
+    int kingCol = -1;
+    for (int i = 0; i < 8; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            copy[i][j] = Board[i][j];
+
+            if (((copy[i][j] & TypeMask) == King) && ((copy[i][j] & ColorMask) == (moverIsWhite ? White : Black)))
+            {
+                kingRow = i;
+                kingCol = j;
+            }
+        }
+    }
+
+    copy[move.to[0]][move.to[1]] = move.piece;
+    copy[move.from[0]][move.from[1]] = None;
+
+    if (move.moveType == MoveEnPassant)
+        copy[move.from[0]][move.to[1]] = None;
+
+    if ((move.piece & TypeMask) == King)
+    {
+        kingRow = move.to[0];
+        kingCol = move.to[1];
+    }
+
+    if (kingCol == -1 && kingRow == -1)
+        return false;
+
+    int kingSquare[2] = {kingRow, kingCol};
+    int noNote[2] = {-1, -1};
+    if(isThisSquareAttacked(copy, !moverIsWhite, kingSquare, noNote))
+        cout << "Check";
+
+    return isThisSquareAttacked(copy, !moverIsWhite, kingSquare, noNote);
+}
+
+bool hasLegalMove(int Board[8][8], bool sideIsWhite, int epNote[2])
+{
+
+    for (int fromRow = 0; fromRow < 8; fromRow++)
+    {
+        for (int fromCol = 0; fromCol < 8; fromCol++)
+        {
+            if ((Board[fromRow][fromCol] == None) || (Board[fromRow][fromCol] & ColorMask) == (!sideIsWhite ? White : Black))
+                continue;
+
+            for (int toRow = 0; toRow < 8; toRow++)
+            {
+                for (int toCol = 0; toCol < 8; toCol++)
+                {
+
+                    Move move;
+                    move.from[0] = fromRow;
+                    move.from[1] = fromCol;
+                    move.to[0] = toRow;
+                    move.to[1] = toCol;
+                    move.piece = Board[fromRow][fromCol];
+                    move.whatsOnDest = Board[toRow][toCol];
+                    move.moveType = MoveNormal;
+
+                    if (validateMove(move, Board, epNote) && !leavesKingInCheck(Board, move, sideIsWhite))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move, Sound moveSFX, bool &whiteTurn, int epNote[2])
 {
 
@@ -388,7 +518,10 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
 
             move.moveType = MoveNormal;
 
-            if (((((move.piece & ColorMask) == 8 && whiteTurn) || ((move.piece & ColorMask) == 16 && !whiteTurn))) && validateMove(move, Board, epNote))
+            bool moverIsWhite = (move.piece & ColorMask) == White;
+            bool rightTurn = ((((move.piece & ColorMask) == 8 && whiteTurn) || ((move.piece & ColorMask) == 16 && !whiteTurn)));
+
+            if (rightTurn && validateMove(move, Board, epNote) && !leavesKingInCheck(Board, move, moverIsWhite))
             {
                 whiteTurn = !whiteTurn;
                 Board[to[0]][to[1]] = whatsBeingHeld;
@@ -404,10 +537,23 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
                 epNote[0] = -1;
                 epNote[1] = -1;
 
-                if ((move.piece&TypeMask) == Pawn  && abs(move.to[0] - move.from[0]) == 2 )
+                if ((move.piece & TypeMask) == Pawn && abs(move.to[0] - move.from[0]) == 2)
                 {
                     epNote[0] = (move.from[0] + move.to[0]) / 2;
                     epNote[1] = from[1];
+                }
+
+                int kingCords[2] = {-1, -1};
+                findKing(Board, whiteTurn ? White : Black, kingCords[0], kingCords[1]);
+
+                if (!hasLegalMove(Board, whiteTurn, epNote))
+                {
+                    int noNote[2] = {-1, -1};
+                    if (isThisSquareAttacked(Board, !whiteTurn, kingCords, noNote))
+                        cout << "checkMate";
+
+                    else
+                        cout << "staleMate";
                 }
             }
             else
@@ -456,6 +602,7 @@ int main()
     Move move;
     bool whiteTurn = true;
     int epNote[2] = {-1, -1};
+    
     while (!WindowShouldClose())
     {
 
