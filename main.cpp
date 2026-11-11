@@ -240,7 +240,7 @@ bool checkInBetween(int Board[8][8], int destenation[2], int origin[2])
     return true;
 }
 
-bool validateMove(Move move, int Board[8][8])
+bool validateMove(Move &move, int Board[8][8], int epNote[2])
 {
 
     int rowDiff = move.to[0] - move.from[0];
@@ -320,7 +320,7 @@ bool validateMove(Move move, int Board[8][8])
             if (isStartingRow &&
                 Board[move.from[0] + dir][move.from[1]] == None && // Check square in between
                 Board[move.to[0]][move.to[1]] == None)
-            { // Check destination square
+            {
                 return true;
             }
         }
@@ -331,10 +331,14 @@ bool validateMove(Move move, int Board[8][8])
             {
                 return true;
             }
+            else if (move.to[0] == epNote[0] && move.to[1] == epNote[1])
+            {
+                move.moveType = MoveEnPassant;
+                return true;
+            }
         }
 
-           
-        return  false;
+        return false;
     }
 
     default:
@@ -342,7 +346,7 @@ bool validateMove(Move move, int Board[8][8])
     }
 }
 
-void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move,Sound moveSFX,bool& whiteTurn)
+void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move, Sound moveSFX, bool &whiteTurn, int epNote[2])
 {
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -369,8 +373,6 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
         }
         else
         {
-            
-
 
             to[0] = y;
             to[1] = x;
@@ -384,13 +386,29 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
             move.piece = whatsBeingHeld;
             move.whatsOnDest = Board[y][x];
 
-            if (validateMove(move, Board) && (((move.piece & ColorMask) == 8 && whiteTurn) || ((move.piece & ColorMask) == 16 && !whiteTurn)))
+            move.moveType = MoveNormal;
+
+            if (((((move.piece & ColorMask) == 8 && whiteTurn) || ((move.piece & ColorMask) == 16 && !whiteTurn))) && validateMove(move, Board, epNote))
             {
                 whiteTurn = !whiteTurn;
                 Board[to[0]][to[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
                 PlaySound(moveSFX);
+
+                if (move.moveType == MoveEnPassant)
+                {
+                    Board[move.from[0]][move.to[1]] = None;
+                }
+
+                epNote[0] = -1;
+                epNote[1] = -1;
+
+                if ((move.piece&TypeMask) == Pawn  && abs(move.to[0] - move.from[0]) == 2 )
+                {
+                    epNote[0] = (move.from[0] + move.to[0]) / 2;
+                    epNote[1] = from[1];
+                }
             }
             else
             {
@@ -416,7 +434,6 @@ int main()
     InitWindow(1024, 1024, "Chess");
     InitAudioDevice();
 
-
     Sound moveSFX = LoadSound("SFX/sound.wav");
 
     Texture2D BoardTexture = LoadTexture("Resources/Board.png");
@@ -438,12 +455,13 @@ int main()
     int to[2];
     Move move;
     bool whiteTurn = true;
+    int epNote[2] = {-1, -1};
     while (!WindowShouldClose())
     {
 
         BeginDrawing();
 
-        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX,whiteTurn);
+        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX, whiteTurn, epNote);
 
         ClearBackground(BEIGE);
 
