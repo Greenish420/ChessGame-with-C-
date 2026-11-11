@@ -31,6 +31,13 @@ enum moveType
     MovePromotion
 };
 
+enum GameState
+{
+    Playing,
+    Checkmate,
+    Stalemate
+};
+
 struct Move
 {
     int from[2];
@@ -42,6 +49,10 @@ struct Move
 
     moveType moveType = MoveNormal;
 };
+
+const char *startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const Rectangle replayButton = {412, 580, 200, 70};
+const int promoOptions[4] = {Queen, Rook, Bishop, Knight};
 
 int charToCode(char c)
 {
@@ -318,7 +329,6 @@ bool hasLegalMove(int Board[8][8], bool sideIsWhite, int epNote[2])
     return false;
 }
 
-
 bool pawnAttacks(int Board[8][8], int row, int col, bool attackerIsWhite)
 {
     int pawn = (attackerIsWhite ? White : Black) | Pawn;
@@ -343,7 +353,6 @@ bool squareUnsafe(int Board[8][8], int row, int col, bool attackerIsWhite)
            pawnAttacks(Board, row, col, attackerIsWhite);
 }
 
-// side: 0 = queenside, 1 = kingside
 bool canCastle(int Board[8][8], bool whiteKing, int side, bool rights[4])
 {
     int index = (whiteKing ? 0 : 2) + side;
@@ -383,7 +392,45 @@ void clearCornerRight(int row, int col, bool rights[4])
         rights[3] = false;
 }
 
-void checkGameEnd(int Board[8][8], bool whiteTurn, int epNote[2])
+void computeLegalMoves(int Board[8][8], int piece, int from[2], int epNote[2], bool castleRights[4], bool legalDest[8][8])
+{
+    bool moverIsWhite = (piece & ColorMask) == White;
+
+    for (int r = 0; r < 8; r++)
+    {
+        for (int c = 0; c < 8; c++)
+        {
+            Move probe;
+            probe.from[0] = from[0];
+            probe.from[1] = from[1];
+            probe.to[0] = r;
+            probe.to[1] = c;
+            probe.piece = piece;
+            probe.whatsOnDest = Board[r][c];
+            probe.moveType = MoveNormal;
+
+            legalDest[r][c] = validateMove(probe, Board, epNote) && !leavesKingInCheck(Board, probe, moverIsWhite);
+        }
+    }
+
+    int homeRow = moverIsWhite ? 7 : 0;
+    if ((piece & TypeMask) == King && from[0] == homeRow && from[1] == 4)
+    {
+        if (canCastle(Board, moverIsWhite, 1, castleRights))
+            legalDest[homeRow][6] = true;
+        if (canCastle(Board, moverIsWhite, 0, castleRights))
+            legalDest[homeRow][2] = true;
+    }
+}
+
+void clearLegalMoves(bool legalDest[8][8])
+{
+    for (int r = 0; r < 8; r++)
+        for (int c = 0; c < 8; c++)
+            legalDest[r][c] = false;
+}
+
+void checkGameEnd(int Board[8][8], bool whiteTurn, int epNote[2], GameState &gameState)
 {
     if (!hasLegalMove(Board, whiteTurn, epNote))
     {
@@ -391,17 +438,19 @@ void checkGameEnd(int Board[8][8], bool whiteTurn, int epNote[2])
         findKing(Board, whiteTurn ? White : Black, kingCords[0], kingCords[1]);
         int noNote[2] = {-1, -1};
         if (isThisSquareAttacked(Board, !whiteTurn, kingCords, noNote))
-            cout << "checkMate" << endl;
+            gameState = Checkmate;
         else
-            cout << "staleMate" << endl;
+            gameState = Stalemate;
+
+        
     }
 }
 
 void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move,
                   Sound moveSFX, bool &whiteTurn, int epNote[2], bool castleRights[4],
-                  bool &promoting, int &promoRow, int &promoCol)
+                  bool &promoting, int &promoRow, int &promoCol, GameState &gameState, bool legalDest[8][8])
 {
-    if (promoting)
+    if (promoting || gameState != Playing)
         return;
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -421,6 +470,12 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
                 isHolding = true;
                 whatsBeingHeld = Board[y][x];
                 Board[y][x] = None;
+
+                bool pieceIsWhite = (whatsBeingHeld & ColorMask) == White;
+                if (pieceIsWhite == whiteTurn)
+                    computeLegalMoves(Board, whatsBeingHeld, from, epNote, castleRights, legalDest);
+                else
+                    clearLegalMoves(legalDest);
             }
         }
         else
@@ -455,12 +510,16 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
                 legal = rightTurn && validateMove(move, Board, epNote) && !leavesKingInCheck(Board, move, moverIsWhite);
             }
 
+            clearLegalMoves(legalDest);
+
             if (legal)
             {
                 whiteTurn = !whiteTurn;
                 Board[to[0]][to[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
+
+                
                 PlaySound(moveSFX);
 
                 if (move.moveType == MoveEnPassant)
@@ -504,15 +563,23 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
                     promoting = true;
                     promoRow = to[0];
                     promoCol = to[1];
+
+                    
                 }
                 else
-                    checkGameEnd(Board, whiteTurn, epNote);
+                {
+                    checkGameEnd(Board, whiteTurn, epNote, gameState);
+
+                    
+                }
             }
             else
             {
                 Board[from[0]][from[1]] = whatsBeingHeld;
                 whatsBeingHeld = None;
                 isHolding = false;
+
+                
             }
         }
     }
@@ -524,9 +591,7 @@ void handlePieceFollow(int whatsBeingHeld, Texture2D Pieces[2][7])
                   {(float)(GetMouseX() - 64), (float)(GetMouseY() - 64)}, 0, 4.0f, WHITE);
 }
 
-const int promoOptions[4] = {Queen, Rook, Bishop, Knight};
-
-void handlePromotion(int Board[8][8], bool &promoting, int promoRow, int promoCol, bool whiteTurn, int epNote[2])
+void handlePromotion(int Board[8][8], bool &promoting, int promoRow, int promoCol, bool whiteTurn, int epNote[2], GameState &gameState)
 {
     if (!promoting || !IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
         return;
@@ -534,14 +599,15 @@ void handlePromotion(int Board[8][8], bool &promoting, int promoRow, int promoCo
     int col = GetMouseX() / 128;
     int my = GetMouseY();
 
-    
     if (my < 448 || my >= 576 || col < 2 || col > 5)
         return;
 
     int color = Board[promoRow][promoCol] & ColorMask;
     Board[promoRow][promoCol] = color | promoOptions[col - 2];
     promoting = false;
-    checkGameEnd(Board, whiteTurn, epNote);
+    checkGameEnd(Board, whiteTurn, epNote, gameState);
+
+    
 }
 
 void drawPromotionMenu(int Board[8][8], int promoRow, int promoCol, Texture2D Pieces[2][7])
@@ -553,10 +619,81 @@ void drawPromotionMenu(int Board[8][8], int promoRow, int promoCol, Texture2D Pi
         DrawTextureEx(Pieces[ci][promoOptions[i]], {(float)((i + 2) * 128), 448.0f}, 0, 4.0f, WHITE);
 }
 
+void drawHighlights(bool isHolding, int from[2], bool legalDest[8][8], int Board[8][8])
+{
+    if (!isHolding)
+        return;
+
+    DrawRectangle(from[1] * 128, from[0] * 128, 128, 128, Fade(YELLOW, 0.4f));
+
+    for (int r = 0; r < 8; r++)
+    {
+        for (int c = 0; c < 8; c++)
+        {
+            if (!legalDest[r][c])
+                continue;
+
+            Vector2 center = {(float)(c * 128 + 64), (float)(r * 128 + 64)};
+            if (Board[r][c] != None)
+                DrawRing(center, 50, 62, 0, 360, 48, Fade(BLACK, 0.35f));
+            else
+                DrawCircleV(center, 18, Fade(BLACK, 0.35f));
+        }
+    }
+}
+
+void drawTurnIndicator(bool whiteTurn)
+{
+    DrawCircle(984, 40, 26, DARKGRAY);
+    DrawCircle(984, 40, 22, whiteTurn ? RAYWHITE : BLACK);
+}
+
+void drawGameOver(GameState gameState, bool whiteTurn)
+{
+    if (gameState == Playing)
+        return;
+
+    DrawRectangle(0, 0, 1024, 1024, Fade(BLACK, 0.65f));
+
+    const char *title = gameState == Checkmate ? "Checkmate" : "Stalemate";
+    const char *subtitle;
+    if (gameState == Checkmate)
+        subtitle = whiteTurn ? "Black wins" : "White wins";
+    else
+        subtitle = "Draw";
+
+    int titleWidth = MeasureText(title, 90);
+    DrawText(title, (1024 - titleWidth) / 2, 380, 90, WHITE);
+
+    int subWidth = MeasureText(subtitle, 50);
+    DrawText(subtitle, (1024 - subWidth) / 2, 490, 50, LIGHTGRAY);
+
+    bool hover = CheckCollisionPointRec(GetMousePosition(), replayButton);
+    DrawRectangleRec(replayButton, hover ? LIGHTGRAY : RAYWHITE);
+    int btnWidth = MeasureText("Replay", 36);
+    DrawText("Replay", (int)(replayButton.x + (replayButton.width - btnWidth) / 2), (int)(replayButton.y + 17), 36, BLACK);
+}
+
+void resetGame(int Board[8][8], bool &whiteTurn, int epNote[2], bool castleRights[4], bool &promoting,
+               bool &isHolding, int &whatsBeingHeld, GameState &gameState, bool legalDest[8][8])
+{
+    stringToBoard(startFEN, Board);
+    whiteTurn = true;
+    epNote[0] = -1;
+    epNote[1] = -1;
+    for (int i = 0; i < 4; i++)
+        castleRights[i] = true;
+    promoting = false;
+    isHolding = false;
+    whatsBeingHeld = None;
+    gameState = Playing;
+    clearLegalMoves(legalDest);
+}
+
 int main()
 {
     int Board[8][8];
-    stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", Board);
+    stringToBoard(startFEN, Board);
 
     InitWindow(1024, 1024, "Chess");
     InitAudioDevice();
@@ -577,26 +714,38 @@ int main()
 
     bool isHolding = false;
     int whatsBeingHeld = None;
-    int from[2];
-    int to[2];
+    int from[2] = {-1, -1};
+    int to[2] = {-1, -1};
     Move move;
     bool whiteTurn = true;
     int epNote[2] = {-1, -1};
-    bool castleRights[4] = {true, true, true, true}; // wQ, wK, bQ, bK
+    bool castleRights[4] = {true, true, true, true};
     bool promoting = false;
     int promoRow = -1, promoCol = -1;
+    GameState gameState = Playing;
+    bool legalDest[8][8];
+    clearLegalMoves(legalDest);
 
     while (!WindowShouldClose())
     {
-       
-        handlePromotion(Board, promoting, promoRow, promoCol, whiteTurn, epNote);
+        if (gameState != Playing)
+        {
+            bool clickedReplay = IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), replayButton);
+            if (clickedReplay || IsKeyPressed(KEY_R))
+                resetGame(Board, whiteTurn, epNote, castleRights, promoting, isHolding, whatsBeingHeld, gameState, legalDest);
+        }
+
+        handlePromotion(Board, promoting, promoRow, promoCol, whiteTurn, epNote, gameState);
         handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX,
-                     whiteTurn, epNote, castleRights, promoting, promoRow, promoCol);
+                     whiteTurn, epNote, castleRights, promoting, promoRow, promoCol, gameState, legalDest);
 
         BeginDrawing();
         ClearBackground(BEIGE);
 
         DrawTextureEx(BoardTexture, {0, 0}, 0, 4.0f, WHITE);
+
+        drawHighlights(isHolding, from, legalDest, Board);
+
         for (int i = 0; i < 8; i++)
         {
             for (int j = 0; j < 8; j++)
@@ -615,6 +764,9 @@ int main()
 
         if (promoting)
             drawPromotionMenu(Board, promoRow, promoCol, Pieces);
+
+        drawTurnIndicator(whiteTurn);
+        drawGameOver(gameState, whiteTurn);
 
         EndDrawing();
     }
