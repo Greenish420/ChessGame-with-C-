@@ -1,14 +1,12 @@
 
 
-
-
-
 # ♟️ Chess
 
 A complete two-player chess game written in **C++17** with **raylib**. It supports every standard rule of movement and a mouse-driven GUI with pixel-art graphics. The rules engine was written from scratch, with no chess libraries.
 
 
-<video src="https://github.com/user-attachments/assets/2b92c632-2480-4a63-8ee3-053dfd267792" autoplay loop muted playsinline></video>
+<img width="600" height="600" alt="GamePlay" src="https://github.com/user-attachments/assets/75521575-49ad-4ac1-b0cf-2e1c8e080a9d" />
+
 
 
 ---
@@ -194,6 +192,4 @@ Most bugs along the way came from a few recurring causes: operator precedence in
 ## Credits
 
 - Built with [raylib](https://www.raylib.com/)
-- Pixel-art board and pieces: [Free Ultimate Pixel Art Chess Asset Pack](https://itch.io/t/7143117/free-ultimate-pixel-art-chess-asset-pack-100-piece-styles-100-chessboards) by [author name]. Please check the pack's license before redistributing the assets.
-
-[Your name] — [link to your GitHub]
+- Pixel-art board and pieces: [Free Ultimate Pixel Art Chess Asset Pack](https://itch.io/t/7143117/free-ultimate-pixel-art-chess-asset-pack-100-piece-styles-100-chessboards)
