@@ -7,8 +7,8 @@
 
 A complete two-player chess game written in **C++17** with **raylib**. It supports every standard rule of movement and a mouse-driven GUI with pixel-art graphics. The rules engine was written from scratch, with no chess libraries.
 
-<!-- ![Screenshot](docs/Chess.gif) -->
-https://github.com/user-attachments/assets/2b92c632-2480-4a63-8ee3-053dfd267792
+
+<video src="https://github.com/user-attachments/assets/2b92c632-2480-4a63-8ee3-053dfd267792" autoplay loop muted playsinline></video>
 
 
 ---
