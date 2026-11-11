@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <cctype>
+#include <cstdlib>
 #include "raylib.h"
 
 using namespace std;
@@ -48,57 +49,23 @@ int charToCode(char c)
     {
     case 'k':
         return King;
-
     case 'q':
         return Queen;
-
     case 'n':
         return Knight;
-
     case 'b':
         return Bishop;
-
     case 'p':
         return Pawn;
-
     case 'r':
         return Rook;
-
     default:
         return None;
     }
 }
 
-char codeToChar(int c)
-{
-    switch (c & TypeMask)
-    {
-    case King:
-        return 'k';
-
-    case Queen:
-        return 'q';
-
-    case Knight:
-        return 'n';
-
-    case Bishop:
-        return 'b';
-
-    case Pawn:
-        return 'p';
-
-    case Rook:
-        return 'r';
-
-    default:
-        return '.';
-    }
-}
-
 void stringToBoard(string layout, int Board[8][8])
 {
-
     int i = 0;
     int j = 0;
 
@@ -108,9 +75,8 @@ void stringToBoard(string layout, int Board[8][8])
 
     for (char c : layout)
     {
-
         if (c == ' ')
-            return; // temporary
+            return;
 
         if (c == '/')
         {
@@ -121,115 +87,36 @@ void stringToBoard(string layout, int Board[8][8])
 
         if (isdigit(c))
         {
-
             j += c - '0';
-
             continue;
         }
 
         if (isupper(c))
-        {
             Board[i][j] = charToCode(tolower(c)) | White;
-            j++;
-            continue;
-        }
         else
-        {
             Board[i][j] = charToCode(tolower(c)) | Black;
-            j++;
-            continue;
-        }
-    }
-}
-
-void printBoard(int Board[8][8])
-{
-    cout << "[" << endl
-         << "   ";
-
-    for (int i = 0; i < 8; i++)
-    {
-        cout << (char)('a' + i) << ", ";
-    }
-    cout << endl;
-
-    for (int i = 0; i < 8; i++)
-    {
-        cout << 8 - i << ", ";
-        for (int j = 0; j < 8; j++)
-        {
-            cout << (((Board[i][j] & White) == 8) ? (char)toupper(codeToChar(Board[i][j])) : codeToChar(Board[i][j])) << ", ";
-        }
-        cout << endl;
-    }
-    cout << "]" << endl;
-}
-
-void movePiece(int Board[8][8], int from[2], int to[2])
-{
-    Board[to[0]][to[1]] = Board[from[0]][from[1]];
-
-    Board[from[0]][from[1]] = None;
-}
-
-int *cordsToIndex(string cords)
-{
-
-    if (cords.size() > 2 || cords.size() < 2)
-        return NULL;
-
-    int i = (int)(tolower(cords[0]) - 'a');
-    int j = (int)(8 - ((int)cords[1] - '0'));
-
-    if (!(i >= 0 && i <= 7 && j >= 0 && j <= 7))
-    {
-        cout << "(cordsToIndex) Out of Range";
-        return NULL;
-    }
-
-    int *outPut = new int[2];
-    outPut[0] = j;
-    outPut[1] = i;
-
-    return outPut;
-}
-
-void drawPieces(int SQ)
-{
-    for (int i = 0; i < 8; i++)
-    {
-        for (int j = 0; j < 8; j++)
-        {
-            Color color = (((i + j) % 2) == 0) ? BLACK : WHITE;
-            DrawRectangle(j * SQ, i * SQ, SQ, SQ, color);
-        }
+        j++;
     }
 }
 
 bool checkInBetween(int Board[8][8], int destenation[2], int origin[2])
 {
-    int xStep;
+    int xStep = 0;
     if ((destenation[0] - origin[0]) > 0)
         xStep = 1;
     else if ((destenation[0] - origin[0]) < 0)
         xStep = -1;
-    else
-        xStep = 0;
 
-    int yStep;
-
+    int yStep = 0;
     if ((destenation[1] - origin[1]) > 0)
         yStep = 1;
     else if ((destenation[1] - origin[1]) < 0)
         yStep = -1;
-    else
-        yStep = 0;
 
     int x = origin[0], y = origin[1];
 
     while (x != destenation[0] || y != destenation[1])
     {
-
         x += xStep;
         y += yStep;
 
@@ -242,95 +129,56 @@ bool checkInBetween(int Board[8][8], int destenation[2], int origin[2])
 
 bool validateMove(Move &move, int Board[8][8], int epNote[2])
 {
-
     int rowDiff = move.to[0] - move.from[0];
     int colDiff = move.to[1] - move.from[1];
-    bool isRock = (((rowDiff) == 0) || ((colDiff) == 0));
+    bool isRock = (rowDiff == 0) || (colDiff == 0);
     bool isBishop = (abs(rowDiff) == abs(colDiff));
 
-    if (((rowDiff) == 0) && ((colDiff) == 0))
+    if (rowDiff == 0 && colDiff == 0)
         return false;
 
     if ((move.whatsOnDest & ColorMask) == (move.piece & ColorMask))
         return false;
 
-    switch ((move.piece & TypeMask))
+    switch (move.piece & TypeMask)
     {
     case Rook:
-        if (isRock && checkInBetween(Board, move.to, move.from))
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return isRock && checkInBetween(Board, move.to, move.from);
 
     case Bishop:
-        if (isBishop && checkInBetween(Board, move.to, move.from))
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return isBishop && checkInBetween(Board, move.to, move.from);
+
     case Queen:
-        if ((isRock || isBishop) && checkInBetween(Board, move.to, move.from))
-        {
-            return true;
-        }
-        else
-            return false;
+        return (isRock || isBishop) && checkInBetween(Board, move.to, move.from);
 
     case King:
-        if (abs(rowDiff) <= 1 && abs(colDiff) <= 1)
-            return true;
-        else
-            return false;
+        return abs(rowDiff) <= 1 && abs(colDiff) <= 1;
 
     case Knight:
-
-        if ((abs(rowDiff) == 1 && abs(colDiff) == 2) || (abs(rowDiff) == 2 && abs(colDiff) == 1))
-            return true;
-        else
-            return false;
+        return (abs(rowDiff) == 1 && abs(colDiff) == 2) || (abs(rowDiff) == 2 && abs(colDiff) == 1);
 
     case Pawn:
     {
-        bool isWhite = ((move.piece & ColorMask) == 8);
-        int dir = 0;
-        if (isWhite)
-            dir = -1;
-        else
-            dir = 1;
-
+        bool isWhite = ((move.piece & ColorMask) == White);
+        int dir = isWhite ? -1 : 1;
         bool isStartingRow = (isWhite && move.from[0] == 6) || (!isWhite && move.from[0] == 1);
 
         if (move.to[1] == move.from[1] && move.to[0] == move.from[0] + dir)
         {
             if (Board[move.to[0]][move.to[1]] == None)
-            {
                 return true;
-            }
         }
-
         else if (move.to[1] == move.from[1] && move.to[0] == move.from[0] + (2 * dir))
         {
             if (isStartingRow &&
-                Board[move.from[0] + dir][move.from[1]] == None && // Check square in between
+                Board[move.from[0] + dir][move.from[1]] == None &&
                 Board[move.to[0]][move.to[1]] == None)
-            {
                 return true;
-            }
         }
-
         else if (abs(move.to[1] - move.from[1]) == 1 && move.to[0] == move.from[0] + dir)
         {
             if (Board[move.to[0]][move.to[1]] != None)
-            {
                 return true;
-            }
             else if (move.to[0] == epNote[0] && move.to[1] == epNote[1])
             {
                 move.moveType = MoveEnPassant;
@@ -367,30 +215,26 @@ bool findKing(int Board[8][8], int color, int &row, int &col)
 
 bool isThisSquareAttacked(int Board[8][8], bool attackerIsWhite, int TargetSquare[2], int epNote[2])
 {
+    int attackerColor = attackerIsWhite ? White : Black;
+
     for (int row = 0; row < 8; row++)
     {
         for (int col = 0; col < 8; col++)
         {
             int square = Board[row][col];
-            if ((square != None) && ((attackerIsWhite && ((square & ColorMask) == 8)) || (!attackerIsWhite && ((square & ColorMask) == 16))))
+            if (square != None && (square & ColorMask) == attackerColor)
             {
                 Move move;
                 move.from[0] = row;
                 move.from[1] = col;
-
                 move.to[0] = TargetSquare[0];
                 move.to[1] = TargetSquare[1];
-
                 move.piece = square;
-
                 move.whatsOnDest = Board[TargetSquare[0]][TargetSquare[1]];
-
                 move.moveType = MoveNormal;
 
                 if (validateMove(move, Board, epNote))
-                {
                     return true;
-                }
             }
         }
     }
@@ -403,6 +247,7 @@ bool leavesKingInCheck(int Board[8][8], Move move, bool moverIsWhite)
     int copy[8][8];
     int kingRow = -1;
     int kingCol = -1;
+
     for (int i = 0; i < 8; i++)
     {
         for (int j = 0; j < 8; j++)
@@ -434,40 +279,37 @@ bool leavesKingInCheck(int Board[8][8], Move move, bool moverIsWhite)
 
     int kingSquare[2] = {kingRow, kingCol};
     int noNote[2] = {-1, -1};
-    if(isThisSquareAttacked(copy, !moverIsWhite, kingSquare, noNote))
-        cout << "Check";
 
     return isThisSquareAttacked(copy, !moverIsWhite, kingSquare, noNote);
 }
 
 bool hasLegalMove(int Board[8][8], bool sideIsWhite, int epNote[2])
 {
+    int myColor = sideIsWhite ? White : Black;
 
     for (int fromRow = 0; fromRow < 8; fromRow++)
     {
         for (int fromCol = 0; fromCol < 8; fromCol++)
         {
-            if ((Board[fromRow][fromCol] == None) || (Board[fromRow][fromCol] & ColorMask) == (!sideIsWhite ? White : Black))
+            int piece = Board[fromRow][fromCol];
+            if (piece == None || (piece & ColorMask) != myColor)
                 continue;
 
             for (int toRow = 0; toRow < 8; toRow++)
             {
                 for (int toCol = 0; toCol < 8; toCol++)
                 {
-
                     Move move;
                     move.from[0] = fromRow;
                     move.from[1] = fromCol;
                     move.to[0] = toRow;
                     move.to[1] = toCol;
-                    move.piece = Board[fromRow][fromCol];
+                    move.piece = piece;
                     move.whatsOnDest = Board[toRow][toCol];
                     move.moveType = MoveNormal;
 
                     if (validateMove(move, Board, epNote) && !leavesKingInCheck(Board, move, sideIsWhite))
-                    {
                         return true;
-                    }
                 }
             }
         }
@@ -476,12 +318,94 @@ bool hasLegalMove(int Board[8][8], bool sideIsWhite, int epNote[2])
     return false;
 }
 
-void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move, Sound moveSFX, bool &whiteTurn, int epNote[2])
+
+bool pawnAttacks(int Board[8][8], int row, int col, bool attackerIsWhite)
 {
+    int pawn = (attackerIsWhite ? White : Black) | Pawn;
+    int pawnRow = attackerIsWhite ? row + 1 : row - 1;
+    if (pawnRow < 0 || pawnRow > 7)
+        return false;
+
+    for (int dc = -1; dc <= 1; dc += 2)
+    {
+        int c = col + dc;
+        if (c >= 0 && c <= 7 && Board[pawnRow][c] == pawn)
+            return true;
+    }
+    return false;
+}
+
+bool squareUnsafe(int Board[8][8], int row, int col, bool attackerIsWhite)
+{
+    int target[2] = {row, col};
+    int noNote[2] = {-1, -1};
+    return isThisSquareAttacked(Board, attackerIsWhite, target, noNote) ||
+           pawnAttacks(Board, row, col, attackerIsWhite);
+}
+
+// side: 0 = queenside, 1 = kingside
+bool canCastle(int Board[8][8], bool whiteKing, int side, bool rights[4])
+{
+    int index = (whiteKing ? 0 : 2) + side;
+    int row = whiteKing ? 7 : 0;
+    int myColor = whiteKing ? White : Black;
+
+    if (!rights[index])
+        return false;
+
+    int rookCol = side == 1 ? 7 : 0;
+    if (Board[row][rookCol] != (myColor | Rook))
+        return false;
+
+    int firstEmpty = side == 1 ? 5 : 1;
+    int lastEmpty = side == 1 ? 6 : 3;
+    for (int c = firstEmpty; c <= lastEmpty; c++)
+        if (Board[row][c] != None)
+            return false;
+
+    int safeCols[3] = {4, side == 1 ? 5 : 3, side == 1 ? 6 : 2};
+    for (int i = 0; i < 3; i++)
+        if (squareUnsafe(Board, row, safeCols[i], !whiteKing))
+            return false;
+
+    return true;
+}
+
+void clearCornerRight(int row, int col, bool rights[4])
+{
+    if (row == 7 && col == 0)
+        rights[0] = false;
+    if (row == 7 && col == 7)
+        rights[1] = false;
+    if (row == 0 && col == 0)
+        rights[2] = false;
+    if (row == 0 && col == 7)
+        rights[3] = false;
+}
+
+void checkGameEnd(int Board[8][8], bool whiteTurn, int epNote[2])
+{
+    if (!hasLegalMove(Board, whiteTurn, epNote))
+    {
+        int kingCords[2] = {-1, -1};
+        findKing(Board, whiteTurn ? White : Black, kingCords[0], kingCords[1]);
+        int noNote[2] = {-1, -1};
+        if (isThisSquareAttacked(Board, !whiteTurn, kingCords, noNote))
+            cout << "checkMate" << endl;
+        else
+            cout << "staleMate" << endl;
+    }
+}
+
+void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move,
+                  Sound moveSFX, bool &whiteTurn, int epNote[2], bool castleRights[4],
+                  bool &promoting, int &promoRow, int &promoCol)
+{
+    if (promoting)
+        return;
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
-
         int x = GetMouseX() / 128;
         int y = GetMouseY() / 128;
 
@@ -490,10 +414,8 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
 
         if (!isHolding)
         {
-
             if (Board[y][x] != None)
             {
-
                 from[0] = y;
                 from[1] = x;
                 isHolding = true;
@@ -503,25 +425,37 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
         }
         else
         {
-
             to[0] = y;
             to[1] = x;
 
             move.from[0] = from[0];
             move.from[1] = from[1];
-
             move.to[0] = to[0];
             move.to[1] = to[1];
-
             move.piece = whatsBeingHeld;
             move.whatsOnDest = Board[y][x];
-
             move.moveType = MoveNormal;
 
             bool moverIsWhite = (move.piece & ColorMask) == White;
-            bool rightTurn = ((((move.piece & ColorMask) == 8 && whiteTurn) || ((move.piece & ColorMask) == 16 && !whiteTurn)));
+            bool rightTurn = (moverIsWhite && whiteTurn) || (!moverIsWhite && !whiteTurn);
 
-            if (rightTurn && validateMove(move, Board, epNote) && !leavesKingInCheck(Board, move, moverIsWhite))
+            bool isCastle = (move.piece & TypeMask) == King &&
+                            from[0] == (moverIsWhite ? 7 : 0) && from[1] == 4 &&
+                            to[0] == from[0] && abs(to[1] - from[1]) == 2;
+
+            bool legal;
+            if (isCastle)
+            {
+                legal = rightTurn && canCastle(Board, moverIsWhite, to[1] == 6 ? 1 : 0, castleRights);
+                if (legal)
+                    move.moveType = MoveCastling;
+            }
+            else
+            {
+                legal = rightTurn && validateMove(move, Board, epNote) && !leavesKingInCheck(Board, move, moverIsWhite);
+            }
+
+            if (legal)
             {
                 whiteTurn = !whiteTurn;
                 Board[to[0]][to[1]] = whatsBeingHeld;
@@ -530,9 +464,31 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
                 PlaySound(moveSFX);
 
                 if (move.moveType == MoveEnPassant)
-                {
                     Board[move.from[0]][move.to[1]] = None;
+
+                if (move.moveType == MoveCastling)
+                {
+                    int r = move.to[0];
+                    if (move.to[1] == 6)
+                    {
+                        Board[r][5] = Board[r][7];
+                        Board[r][7] = None;
+                    }
+                    else
+                    {
+                        Board[r][3] = Board[r][0];
+                        Board[r][0] = None;
+                    }
                 }
+
+                if ((move.piece & TypeMask) == King)
+                {
+                    int base = moverIsWhite ? 0 : 2;
+                    castleRights[base] = false;
+                    castleRights[base + 1] = false;
+                }
+                clearCornerRight(move.from[0], move.from[1], castleRights);
+                clearCornerRight(move.to[0], move.to[1], castleRights);
 
                 epNote[0] = -1;
                 epNote[1] = -1;
@@ -543,18 +499,14 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
                     epNote[1] = from[1];
                 }
 
-                int kingCords[2] = {-1, -1};
-                findKing(Board, whiteTurn ? White : Black, kingCords[0], kingCords[1]);
-
-                if (!hasLegalMove(Board, whiteTurn, epNote))
+                if ((move.piece & TypeMask) == Pawn && (to[0] == 0 || to[0] == 7))
                 {
-                    int noNote[2] = {-1, -1};
-                    if (isThisSquareAttacked(Board, !whiteTurn, kingCords, noNote))
-                        cout << "checkMate";
-
-                    else
-                        cout << "staleMate";
+                    promoting = true;
+                    promoRow = to[0];
+                    promoCol = to[1];
                 }
+                else
+                    checkGameEnd(Board, whiteTurn, epNote);
             }
             else
             {
@@ -568,12 +520,41 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
 
 void handlePieceFollow(int whatsBeingHeld, Texture2D Pieces[2][7])
 {
-    DrawTextureEx(Pieces[((whatsBeingHeld & ColorMask) / 8) - 1][(whatsBeingHeld & TypeMask)], {GetMouseX() - 64, GetMouseY() - 64}, 0, 4.0f, WHITE);
+    DrawTextureEx(Pieces[((whatsBeingHeld & ColorMask) / 8) - 1][(whatsBeingHeld & TypeMask)],
+                  {(float)(GetMouseX() - 64), (float)(GetMouseY() - 64)}, 0, 4.0f, WHITE);
+}
+
+const int promoOptions[4] = {Queen, Rook, Bishop, Knight};
+
+void handlePromotion(int Board[8][8], bool &promoting, int promoRow, int promoCol, bool whiteTurn, int epNote[2])
+{
+    if (!promoting || !IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        return;
+
+    int col = GetMouseX() / 128;
+    int my = GetMouseY();
+
+    
+    if (my < 448 || my >= 576 || col < 2 || col > 5)
+        return;
+
+    int color = Board[promoRow][promoCol] & ColorMask;
+    Board[promoRow][promoCol] = color | promoOptions[col - 2];
+    promoting = false;
+    checkGameEnd(Board, whiteTurn, epNote);
+}
+
+void drawPromotionMenu(int Board[8][8], int promoRow, int promoCol, Texture2D Pieces[2][7])
+{
+    int ci = ((Board[promoRow][promoCol] & ColorMask) / 8) - 1;
+
+    DrawRectangle(2 * 128, 448, 4 * 128, 128, Fade(BLACK, 0.8f));
+    for (int i = 0; i < 4; i++)
+        DrawTextureEx(Pieces[ci][promoOptions[i]], {(float)((i + 2) * 128), 448.0f}, 0, 4.0f, WHITE);
 }
 
 int main()
 {
-
     int Board[8][8];
     stringToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", Board);
 
@@ -586,7 +567,6 @@ int main()
     Texture2D Pieces[2][7];
     for (int i = 0; i < 2; i++)
     {
-
         for (int j = 1; j < 7; j++)
         {
             string path = ("Resources/Pieces/" + to_string(i) + "/" + to_string(j) + ".png");
@@ -602,14 +582,18 @@ int main()
     Move move;
     bool whiteTurn = true;
     int epNote[2] = {-1, -1};
-    
+    bool castleRights[4] = {true, true, true, true}; // wQ, wK, bQ, bK
+    bool promoting = false;
+    int promoRow = -1, promoCol = -1;
+
     while (!WindowShouldClose())
     {
+       
+        handlePromotion(Board, promoting, promoRow, promoCol, whiteTurn, epNote);
+        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX,
+                     whiteTurn, epNote, castleRights, promoting, promoRow, promoCol);
 
         BeginDrawing();
-
-        handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX, whiteTurn, epNote);
-
         ClearBackground(BEIGE);
 
         DrawTextureEx(BoardTexture, {0, 0}, 0, 4.0f, WHITE);
@@ -617,26 +601,30 @@ int main()
         {
             for (int j = 0; j < 8; j++)
             {
-
                 if (Board[i][j] == None)
                     continue;
 
-                if ((Board[i][j] & ColorMask) == 8)
-                {
-                    DrawTextureEx(Pieces[(White / 8) - 1][(Board[i][j] & TypeMask)], {j * 128, i * 128}, 0, 4.0f, WHITE);
-                }
-                else
-                {
-                    DrawTextureEx(Pieces[(Black / 8) - 1][(Board[i][j] & TypeMask)], {j * 128, i * 128}, 0, 4.0f, WHITE);
-                }
+                int ci = ((Board[i][j] & ColorMask) / 8) - 1;
+                DrawTextureEx(Pieces[ci][Board[i][j] & TypeMask],
+                              {(float)(j * 128), (float)(i * 128)}, 0, 4.0f, WHITE);
             }
         }
+
         if (isHolding)
             handlePieceFollow(whatsBeingHeld, Pieces);
+
+        if (promoting)
+            drawPromotionMenu(Board, promoRow, promoCol, Pieces);
+
         EndDrawing();
     }
 
     UnloadTexture(BoardTexture);
+    for (int i = 0; i < 2; i++)
+        for (int j = 1; j < 7; j++)
+            UnloadTexture(Pieces[i][j]);
+    UnloadSound(moveSFX);
+    CloseAudioDevice();
     CloseWindow();
 
     return 0;
