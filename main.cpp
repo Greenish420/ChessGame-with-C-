@@ -2,6 +2,9 @@
 #include <string>
 #include <cctype>
 #include <cstdlib>
+#include <cmath>
+#include <vector>
+#include <algorithm>
 #include "raylib.h"
 
 using namespace std;
@@ -53,6 +56,53 @@ struct Move
 const char *startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const Rectangle replayButton = {412, 580, 200, 70};
 const int promoOptions[4] = {Queen, Rook, Bishop, Knight};
+
+
+const string SPRITE_ROOT = "Resources/Sprites/";
+const string UI_STYLE = "maple_burl";
+
+struct BoardSprites
+{
+    Texture2D selected;
+    Texture2D legalMove;
+    Texture2D capture;
+    Texture2D lastMove;
+    Texture2D files[8]; // A..H
+    Texture2D ranks[8]; // 1..8 (index 0 = rank 1)
+};
+
+BoardSprites loadBoardSprites()
+{
+    BoardSprites s;
+    string hl = SPRITE_ROOT + "Board_Utilities/Highlight_Styles/" + UI_STYLE + "/";
+    string co = SPRITE_ROOT + "Board_Utilities/Coordinate_Styles/" + UI_STYLE + "/";
+
+    s.selected = LoadTexture((hl + "selected.png").c_str());
+    s.legalMove = LoadTexture((hl + "legal_move.png").c_str());
+    s.capture = LoadTexture((hl + "capture.png").c_str());
+    s.lastMove = LoadTexture((hl + "last_move.png").c_str());
+
+    for (int i = 0; i < 8; i++)
+    {
+        string file(1, (char)('A' + i));
+        s.files[i] = LoadTexture((co + file + ".png").c_str());
+        s.ranks[i] = LoadTexture((co + to_string(i + 1) + ".png").c_str());
+    }
+    return s;
+}
+
+void unloadBoardSprites(BoardSprites &s)
+{
+    UnloadTexture(s.selected);
+    UnloadTexture(s.legalMove);
+    UnloadTexture(s.capture);
+    UnloadTexture(s.lastMove);
+    for (int i = 0; i < 8; i++)
+    {
+        UnloadTexture(s.files[i]);
+        UnloadTexture(s.ranks[i]);
+    }
+}
 
 int charToCode(char c)
 {
@@ -446,9 +496,28 @@ void checkGameEnd(int Board[8][8], bool whiteTurn, int epNote[2], GameState &gam
     }
 }
 
+
+void updateCheck(int Board[8][8], bool whiteTurn, int checkSq[2])
+{
+    checkSq[0] = -1;
+    checkSq[1] = -1;
+
+    int kr, kc;
+    if (!findKing(Board, whiteTurn ? White : Black, kr, kc))
+        return;
+
+    int kingSquare[2] = {kr, kc};
+    int noNote[2] = {-1, -1};
+    if (isThisSquareAttacked(Board, !whiteTurn, kingSquare, noNote))
+    {
+        checkSq[0] = kr;
+        checkSq[1] = kc;
+    }
+}
+
 void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int from[2], int to[2], Move &move,
                   Sound moveSFX, bool &whiteTurn, int epNote[2], bool castleRights[4],
-                  bool &promoting, int &promoRow, int &promoCol, GameState &gameState, bool legalDest[8][8])
+                  bool &promoting, int &promoRow, int &promoCol, GameState &gameState, bool legalDest[8][8], int lastMove[4])
 {
     if (promoting || gameState != Playing)
         return;
@@ -521,6 +590,11 @@ void handleMoving(int Board[8][8], bool &isHolding, int &whatsBeingHeld, int fro
 
                 
                 PlaySound(moveSFX);
+
+                lastMove[0] = move.from[0];
+                lastMove[1] = move.from[1];
+                lastMove[2] = move.to[0];
+                lastMove[3] = move.to[1];
 
                 if (move.moveType == MoveEnPassant)
                     Board[move.from[0]][move.to[1]] = None;
@@ -619,12 +693,29 @@ void drawPromotionMenu(int Board[8][8], int promoRow, int promoCol, Texture2D Pi
         DrawTextureEx(Pieces[ci][promoOptions[i]], {(float)((i + 2) * 128), 448.0f}, 0, 4.0f, WHITE);
 }
 
-void drawHighlights(bool isHolding, int from[2], bool legalDest[8][8], int Board[8][8])
+void drawHighlights(bool isHolding, int from[2], bool legalDest[8][8], int Board[8][8],
+                    int whatsBeingHeld, int lastMove[4], int checkSq[2], const BoardSprites &sprites)
 {
+    
+    if (lastMove[0] >= 0)
+    {
+        DrawTextureEx(sprites.lastMove, {(float)(lastMove[1] * 128), (float)(lastMove[0] * 128)}, 0, 4.0f, WHITE);
+        DrawTextureEx(sprites.lastMove, {(float)(lastMove[3] * 128), (float)(lastMove[2] * 128)}, 0, 4.0f, WHITE);
+    }
+
+    if (checkSq[0] >= 0)
+    {
+        float x = (float)(checkSq[1] * 128);
+        float y = (float)(checkSq[0] * 128);
+        float pulse = 0.65f + 0.35f * sinf((float)GetTime() * 6.0f);
+        DrawTextureEx(sprites.selected, {x, y}, 0, 4.0f, Fade(RED, pulse)); // gold frame tinted red
+        DrawTextureEx(sprites.capture, {x, y}, 0, 4.0f, Fade(WHITE, pulse));
+    }
+
     if (!isHolding)
         return;
 
-    DrawRectangle(from[1] * 128, from[0] * 128, 128, 128, Fade(YELLOW, 0.4f));
+    DrawTextureEx(sprites.selected, {(float)(from[1] * 128), (float)(from[0] * 128)}, 0, 4.0f, WHITE);
 
     for (int r = 0; r < 8; r++)
     {
@@ -633,19 +724,253 @@ void drawHighlights(bool isHolding, int from[2], bool legalDest[8][8], int Board
             if (!legalDest[r][c])
                 continue;
 
-            Vector2 center = {(float)(c * 128 + 64), (float)(r * 128 + 64)};
-            if (Board[r][c] != None)
-                DrawRing(center, 50, 62, 0, 360, 48, Fade(BLACK, 0.35f));
-            else
-                DrawCircleV(center, 18, Fade(BLACK, 0.35f));
+            // en passant lands on an empty square but is still a capture
+            bool isCapture = Board[r][c] != None ||
+                             ((whatsBeingHeld & TypeMask) == Pawn && c != from[1]);
+
+            Vector2 pos = {(float)(c * 128), (float)(r * 128)};
+            DrawTextureEx(isCapture ? sprites.capture : sprites.legalMove, pos, 0, 4.0f, WHITE);
         }
+    }
+}
+
+
+void drawCoordinates(const BoardSprites &sprites)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        DrawTextureEx(sprites.ranks[7 - i], {-19.0f, (float)(i * 128 - 15)}, 0, 2.0f, WHITE);
+        DrawTextureEx(sprites.files[i], {(float)(i * 128 + 81), (float)(7 * 128 + 77)}, 0, 2.0f, WHITE);
     }
 }
 
 void drawTurnIndicator(bool whiteTurn)
 {
-    DrawCircle(984, 40, 26, DARKGRAY);
-    DrawCircle(984, 40, 22, whiteTurn ? RAYWHITE : BLACK);
+    Vector2 center = {1008.0f, 16.0f};
+    DrawCircleV(center, 10, whiteTurn ? BLACK : RAYWHITE); // thin contrasting rim so it reads on any tile
+    DrawCircleV(center, 8, whiteTurn ? RAYWHITE : BLACK);
+}
+
+
+const Color markFill[4] = {{235, 64, 52, 255}, {88, 180, 70, 255}, {70, 130, 230, 255}, {240, 200, 50, 255}};
+const Color markRim[4] = {{120, 20, 20, 255}, {30, 90, 30, 255}, {20, 50, 120, 255}, {130, 100, 10, 255}};
+
+struct Mark
+{
+    int from[2];
+    int to[2]; // same as from -> tile mark, otherwise an arrow
+    int color;
+};
+
+struct Annotations
+{
+    vector<Mark> marks;
+    bool drawing = false;
+    int start[2] = {-1, -1};
+};
+
+struct Pt
+{
+    float x, y;
+};
+
+bool mouseSquare(int &row, int &col)
+{
+    int mx = GetMouseX();
+    int my = GetMouseY();
+    if (mx < 0 || my < 0 || mx >= 1024 || my >= 1024)
+        return false;
+    col = mx / 128;
+    row = my / 128;
+    return true;
+}
+
+int currentMarkColor()
+{
+    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
+        return 1;
+    if (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL))
+        return 2;
+    if (IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT))
+        return 3;
+    return 0;
+}
+
+void toggleMark(Annotations &a, int fromRow, int fromCol, int toRow, int toCol, int color)
+{
+    for (size_t i = 0; i < a.marks.size(); i++)
+    {
+        Mark &m = a.marks[i];
+        if (m.from[0] == fromRow && m.from[1] == fromCol && m.to[0] == toRow && m.to[1] == toCol)
+        {
+            if (m.color == color)
+                a.marks.erase(a.marks.begin() + i); // same again -> remove
+            else
+                m.color = color; // other color -> recolor
+            return;
+        }
+    }
+    Mark m = {{fromRow, fromCol}, {toRow, toCol}, color};
+    a.marks.push_back(m);
+}
+
+void clearAnnotations(Annotations &a)
+{
+    a.marks.clear();
+    a.drawing = false;
+}
+
+void handleAnnotations(Annotations &a)
+{
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        clearAnnotations(a);
+
+    int row, col;
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && mouseSquare(row, col))
+    {
+        a.drawing = true;
+        a.start[0] = row;
+        a.start[1] = col;
+    }
+
+    if (a.drawing && IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
+    {
+        a.drawing = false;
+        if (mouseSquare(row, col))
+            toggleMark(a, a.start[0], a.start[1], row, col, currentMarkColor());
+    }
+}
+
+void drawTileMark(int row, int col, int color)
+{
+    float x = (float)(col * 128);
+    float y = (float)(row * 128);
+    DrawRectangle((int)x, (int)y, 128, 128, Fade(markFill[color], 0.55f));
+    DrawRectangleLinesEx({x, y, 128.0f, 128.0f}, 4, Fade(markRim[color], 0.8f));
+}
+
+void drawTileMarks(const Annotations &a)
+{
+    for (const Mark &m : a.marks)
+        if (m.from[0] == m.to[0] && m.from[1] == m.to[1])
+            drawTileMark(m.from[0], m.from[1], m.color);
+}
+
+float distToSegment(Pt p, Pt a, Pt b)
+{
+    float dx = b.x - a.x;
+    float dy = b.y - a.y;
+    float len2 = dx * dx + dy * dy;
+    float t = len2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2 : 0.0f;
+    t = max(0.0f, min(1.0f, t));
+    float cx = a.x + t * dx - p.x;
+    float cy = a.y + t * dy - p.y;
+    return sqrtf(cx * cx + cy * cy);
+}
+
+
+float triangleDepth(Pt p, Pt a, Pt b, Pt c)
+{
+    float orient = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    float sign = orient > 0 ? 1.0f : -1.0f;
+    Pt v[3] = {a, b, c};
+    float best = 1e9f;
+    for (int i = 0; i < 3; i++)
+    {
+        Pt p0 = v[i];
+        Pt p1 = v[(i + 1) % 3];
+        float ex = p1.x - p0.x;
+        float ey = p1.y - p0.y;
+        float len = sqrtf(ex * ex + ey * ey);
+        float d = sign * (ex * (p.y - p0.y) - ey * (p.x - p0.x)) / len;
+        best = min(best, d);
+    }
+    return best;
+}
+
+
+void drawPixelArrow(int fromRow, int fromCol, int toRow, int toCol, int color, float alpha)
+{
+    const float halfW = 3.5f;   // shaft half-width (art pixels)
+    const float headLen = 12.0f;
+    const float headHalf = 9.0f;
+
+    Pt s = {fromCol * 32 + 16.0f, fromRow * 32 + 16.0f};
+    Pt e = {toCol * 32 + 16.0f, toRow * 32 + 16.0f};
+
+    int dr = abs(toRow - fromRow);
+    int dc = abs(toCol - fromCol);
+    bool knight = (dr == 1 && dc == 2) || (dr == 2 && dc == 1);
+
+    Pt corner = s;
+    Pt prev = s;
+    if (knight)
+    {
+        corner = (dc == 2) ? Pt{e.x, s.y} : Pt{s.x, e.y}; // long leg first, like chess.com
+        prev = corner;
+    }
+
+    float dx = e.x - prev.x;
+    float dy = e.y - prev.y;
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.001f)
+        return;
+    dx /= len;
+    dy /= len;
+
+    Pt base = {e.x - dx * headLen, e.y - dy * headLen};
+    Pt wing1 = {base.x - dy * headHalf, base.y + dx * headHalf};
+    Pt wing2 = {base.x + dy * headHalf, base.y - dx * headHalf};
+
+    Pt shaft[3] = {s, base, base};
+    int shaftPoints = 2;
+    if (knight)
+    {
+        shaft[1] = corner;
+        shaft[2] = base;
+        shaftPoints = 3;
+    }
+
+    auto inside = [&](Pt p, float margin) -> bool
+    {
+        for (int i = 0; i < shaftPoints - 1; i++)
+            if (distToSegment(p, shaft[i], shaft[i + 1]) <= halfW + margin)
+                return true;
+        return triangleDepth(p, e, wing1, wing2) >= -margin;
+    };
+
+    float pad = headHalf + 2.0f;
+    int x0 = max(0, (int)floorf(min(min(s.x, e.x), corner.x) - pad));
+    int x1 = min(255, (int)ceilf(max(max(s.x, e.x), corner.x) + pad));
+    int y0 = max(0, (int)floorf(min(min(s.y, e.y), corner.y) - pad));
+    int y1 = min(255, (int)ceilf(max(max(s.y, e.y), corner.y) + pad));
+
+    Color fill = Fade(markFill[color], alpha);
+    Color rim = Fade(markRim[color], alpha);
+
+    for (int py = y0; py <= y1; py++)
+    {
+        for (int px = x0; px <= x1; px++)
+        {
+            Pt p = {px + 0.5f, py + 0.5f};
+            if (inside(p, 0.0f))
+                DrawRectangle(px * 4, py * 4, 4, 4, fill);
+            else if (inside(p, 1.0f))
+                DrawRectangle(px * 4, py * 4, 4, 4, rim);
+        }
+    }
+}
+
+void drawArrows(const Annotations &a)
+{
+    for (const Mark &m : a.marks)
+        if (m.from[0] != m.to[0] || m.from[1] != m.to[1])
+            drawPixelArrow(m.from[0], m.from[1], m.to[0], m.to[1], m.color, 0.8f);
+
+    
+    int row, col;
+    if (a.drawing && mouseSquare(row, col) && (row != a.start[0] || col != a.start[1]))
+        drawPixelArrow(a.start[0], a.start[1], row, col, currentMarkColor(), 0.6f);
 }
 
 void drawGameOver(GameState gameState, bool whiteTurn)
@@ -675,7 +1000,8 @@ void drawGameOver(GameState gameState, bool whiteTurn)
 }
 
 void resetGame(int Board[8][8], bool &whiteTurn, int epNote[2], bool castleRights[4], bool &promoting,
-               bool &isHolding, int &whatsBeingHeld, GameState &gameState, bool legalDest[8][8])
+               bool &isHolding, int &whatsBeingHeld, GameState &gameState, bool legalDest[8][8],
+               int lastMove[4], int checkSq[2])
 {
     stringToBoard(startFEN, Board);
     whiteTurn = true;
@@ -688,6 +1014,10 @@ void resetGame(int Board[8][8], bool &whiteTurn, int epNote[2], bool castleRight
     whatsBeingHeld = None;
     gameState = Playing;
     clearLegalMoves(legalDest);
+    for (int i = 0; i < 4; i++)
+        lastMove[i] = -1;
+    checkSq[0] = -1;
+    checkSq[1] = -1;
 }
 
 int main()
@@ -710,6 +1040,7 @@ int main()
             Pieces[i][j] = LoadTexture(path.c_str());
         }
     }
+    BoardSprites sprites = loadBoardSprites();
     SetTargetFPS(60);
 
     bool isHolding = false;
@@ -725,6 +1056,9 @@ int main()
     GameState gameState = Playing;
     bool legalDest[8][8];
     clearLegalMoves(legalDest);
+    int lastMove[4] = {-1, -1, -1, -1};
+    int checkSq[2] = {-1, -1};
+    Annotations notes;
 
     while (!WindowShouldClose())
     {
@@ -732,19 +1066,32 @@ int main()
         {
             bool clickedReplay = IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), replayButton);
             if (clickedReplay || IsKeyPressed(KEY_R))
-                resetGame(Board, whiteTurn, epNote, castleRights, promoting, isHolding, whatsBeingHeld, gameState, legalDest);
+            {
+                resetGame(Board, whiteTurn, epNote, castleRights, promoting, isHolding, whatsBeingHeld, gameState, legalDest, lastMove, checkSq);
+                clearAnnotations(notes);
+            }
         }
 
+        handleAnnotations(notes);
         handlePromotion(Board, promoting, promoRow, promoCol, whiteTurn, epNote, gameState);
         handleMoving(Board, isHolding, whatsBeingHeld, from, to, move, moveSFX,
-                     whiteTurn, epNote, castleRights, promoting, promoRow, promoCol, gameState, legalDest);
+                     whiteTurn, epNote, castleRights, promoting, promoRow, promoCol, gameState, legalDest, lastMove);
+
+        if (promoting)
+        {
+            checkSq[0] = -1;
+            checkSq[1] = -1;
+        }
+        else if (!isHolding)
+            updateCheck(Board, whiteTurn, checkSq);
 
         BeginDrawing();
         ClearBackground(BEIGE);
 
         DrawTextureEx(BoardTexture, {0, 0}, 0, 4.0f, WHITE);
 
-        drawHighlights(isHolding, from, legalDest, Board);
+        drawTileMarks(notes);
+        drawHighlights(isHolding, from, legalDest, Board, whatsBeingHeld, lastMove, checkSq, sprites);
 
         for (int i = 0; i < 8; i++)
         {
@@ -758,6 +1105,9 @@ int main()
                               {(float)(j * 128), (float)(i * 128)}, 0, 4.0f, WHITE);
             }
         }
+
+        drawCoordinates(sprites);
+        drawArrows(notes);
 
         if (isHolding)
             handlePieceFollow(whatsBeingHeld, Pieces);
@@ -775,6 +1125,7 @@ int main()
     for (int i = 0; i < 2; i++)
         for (int j = 1; j < 7; j++)
             UnloadTexture(Pieces[i][j]);
+    unloadBoardSprites(sprites);
     UnloadSound(moveSFX);
     CloseAudioDevice();
     CloseWindow();
